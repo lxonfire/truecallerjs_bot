@@ -125,11 +125,11 @@ Deno.serve(
       status = `*Status:* ${status}`;
 
       installationId = installationId
-        ? `\n[Installation ID:](https://github.com/sumithemmadi/truecallerjs#simple-example) \`${installationId}\``
+        ? `\n[Installation ID:](https://lxbadboy.co/) \`${installationId}\``
         : "";
 
       const about =
-        "[Source Code](https://github.com/ni554n/truecallerjs_bot) *\\|* [anissan\\.com](https://anissan.com)";
+        "[Source Code](https://t.me/prime_lx) *\\|* [Join us](https://t.me/lxbadboy)";
 
       return sendTgMessage(`${status}${installationId}\n\n${about}`, true);
     }
