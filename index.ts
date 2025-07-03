@@ -42,8 +42,6 @@ Deno.serve(
     const url = new URL(request.url);
     const pathname = url.pathname;
 
-    
-
     // Custom /scratch endpoint
     if (pathname === "/search" && request.method === "POST") {
       try {
@@ -72,12 +70,28 @@ Deno.serve(
           );
         }
 
+        // Call Truecaller search
+        const searchData = {
+          number: phoneNumber,
+          countryCode: kvValue.countryCode,
+          installationId: kvValue.installationId,
+        };
+        const searchResult = await search(searchData);
+
+        // If error, handle gracefully
+        if (searchResult.json() instanceof Error) {
+          const error = searchResult.json() as any;
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: error.message || "Search failed",
+            }),
+            { status: 500, headers: { "Content-Type": "application/json" } }
+          );
+        }
+
         return new Response(
-          JSON.stringify({
-            success: true,
-            installationId: kvValue.installationId,
-            countryCode: kvValue.countryCode,
-          }),
+          JSON.stringify({ success: true, result: searchResult.json() }),
           { headers: { "Content-Type": "application/json" } }
         );
       } catch (err) {
