@@ -43,45 +43,53 @@ Deno.serve(
     const pathname = url.pathname;
 
     // Custom /search endpoint
-    if (pathname === "/search" && request.method === "GET") {
-      const number = url.searchParams.get("number");
-      const countryCode = url.searchParams.get("cc");
-      const installationId = url.searchParams.get("iid");
+    if (pathname === "/search" && request.method === "POST") {
+      try {
+        const body = await request.json();
+        const number = body.number;
+        const countryCode = body.cc;
+        const installationId = body.iid;
 
-      if (!(number && countryCode && installationId)) {
-        return new Response("Missing query parameters", { status: 400 });
-      }
+        if (!(number && countryCode && installationId)) {
+          return new Response("Missing required fields", { status: 400 });
+        }
 
-      const searchResult = await search({
-        number,
-        countryCode,
-        installationId,
-      });
+        const searchResult = await search({
+          number,
+          countryCode,
+          installationId,
+        });
 
-      if (searchResult.json() instanceof Error) {
-        const err = searchResult.json() as any;
+        if (searchResult.json() instanceof Error) {
+          const err = searchResult.json() as any;
+          return new Response(
+            JSON.stringify({
+              success: false,
+              error: err.response?.data ?? "Unknown error",
+            }),
+            {
+              headers: { "Content-Type": "application/json" },
+              status: 500,
+            }
+          );
+        }
+
         return new Response(
           JSON.stringify({
-            success: false,
-            error: err.response?.data ?? "Unknown error",
+            success: true,
+            name: searchResult.getName(),
+            data: searchResult.getData(),
           }),
           {
             headers: { "Content-Type": "application/json" },
-            status: 500,
           }
         );
+      } catch (err) {
+        return new Response(
+          JSON.stringify({ success: false, error: "Invalid JSON" }),
+          { status: 400, headers: { "Content-Type": "application/json" } }
+        );
       }
-
-      return new Response(
-        JSON.stringify({
-          success: true,
-          data: searchResult.getData(),
-        }),
-        {
-          headers: { "Content-Type": "application/json" },
-          status: 200,
-        }
-      );
     }
 
     if (request.method !== "POST") return new Response(null, { status: 404 });
