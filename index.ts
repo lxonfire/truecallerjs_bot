@@ -42,47 +42,43 @@ Deno.serve(
     const url = new URL(request.url);
     const pathname = url.pathname;
 
-    // Custom /search endpoint
+    
+
+    // Custom /scratch endpoint
     if (pathname === "/search" && request.method === "POST") {
       try {
         const body = await request.json();
-        const number = body.number;
-        const countryCode = body.cc;
-        const installationId = body.iid;
+        const chatId = body.chatid;
+        const phoneNumber = body.phonenumber;
 
-        if (!(number && countryCode && installationId)) {
+        if (!(chatId && phoneNumber)) {
           return new Response("Missing required fields", { status: 400 });
         }
 
-        const searchResult = await search({
-          number,
-          countryCode,
-          installationId,
-        });
-
-        if (searchResult.json() instanceof Error) {
-          const err = searchResult.json() as any;
-          return new Response(
-            JSON.stringify({
-              success: false,
-              error: err.response?.data ?? "Unknown error",
-            }),
-            {
-              headers: { "Content-Type": "application/json" },
-              status: 500,
+        const kv: Deno.Kv = await Deno.openKv();
+        const chatIdKey: [string, number] = ["users", chatId];
+        const kvValue = (await kv.get(chatIdKey)).value as
+          | {
+              status: "logged_in";
+              installationId: string;
+              countryCode: string;
             }
+          | undefined;
+
+        if (!kvValue || kvValue.status !== "logged_in") {
+          return new Response(
+            JSON.stringify({ success: false, error: "User not logged in" }),
+            { status: 404, headers: { "Content-Type": "application/json" } }
           );
         }
 
         return new Response(
           JSON.stringify({
             success: true,
-            name: searchResult.getName(),
-            data: searchResult.getData(),
+            installationId: kvValue.installationId,
+            countryCode: kvValue.countryCode,
           }),
-          {
-            headers: { "Content-Type": "application/json" },
-          }
+          { headers: { "Content-Type": "application/json" } }
         );
       } catch (err) {
         return new Response(
