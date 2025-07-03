@@ -33,26 +33,57 @@ let tgChatId: number | undefined;
  */
 Deno.serve(
   {
-    // deno-lint-ignore no-explicit-any
     onError(error: any): Response {
-      let message: string | undefined;
-
-      if (error?.name === "AxiosError" && "response" in error) {
-        message =
-          error?.response?.data?.message || "Try again with a valid number.";
-      } else {
-        const reason =
-          error instanceof Error ? `\nReason: ${error.message}` : "";
-
-        message = `Internal server error!${reason}\nIt's been reported and will be fixed if possible.`;
-      }
-
-      reportError(error);
-
-      return message ? sendTgMessage(message) : new Response();
+      // Error handler (optional)
+      return new Response("Error occurred", { status: 500 });
     },
   },
   async (request: Request) => {
+    const url = new URL(request.url);
+    const pathname = url.pathname;
+
+    // Custom /search endpoint
+    if (pathname === "/search" && request.method === "GET") {
+      const number = url.searchParams.get("number");
+      const countryCode = url.searchParams.get("cc");
+      const installationId = url.searchParams.get("iid");
+
+      if (!(number && countryCode && installationId)) {
+        return new Response("Missing query parameters", { status: 400 });
+      }
+
+      const searchResult = await search({
+        number,
+        countryCode,
+        installationId,
+      });
+
+      if (searchResult.json() instanceof Error) {
+        const err = searchResult.json() as any;
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: err.response?.data ?? "Unknown error",
+          }),
+          {
+            headers: { "Content-Type": "application/json" },
+            status: 500,
+          }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          data: searchResult.getData(),
+        }),
+        {
+          headers: { "Content-Type": "application/json" },
+          status: 200,
+        }
+      );
+    }
+
     if (request.method !== "POST") return new Response(null, { status: 404 });
 
     const { message, my_chat_member }: Update =
@@ -107,7 +138,7 @@ Deno.serve(
       if (kvValue.status === "logged_out") reportEvent("/start");
 
       return sendTgMessage(
-        "You need to /login to Truecaller with your existing account to use the bot.\nOnly you will be using your own account to search the numbers.",
+        "You need to /login to Truecaller with your existing account to use the bot.\nOnly you will be using your own account to search the numbers."
       );
     }
 
@@ -139,7 +170,7 @@ Deno.serve(
     if ((message.text as BotCommand) === "/installation_id") {
       if (kvValue.status === "logged_in") {
         return sendTgMessage(
-          "You are already logged in.\n/logout first and then try again.",
+          "You are already logged in.\n/logout first and then try again."
         );
       }
 
@@ -149,7 +180,7 @@ Deno.serve(
 
       return sendTgMessage(
         "_installation\\_id_ is the final auth token generated after a successful truecaller login\\.\n\nIf you know how to retrieve it from an already logged in device, you can directly set it here without going through the login process again\\.\n\nEnter the installation ID:",
-        true,
+        true
       );
     }
 
@@ -168,7 +199,7 @@ Deno.serve(
 
       return sendTgMessage(
         "Enter your phone number's 2\\-letter [ISO country code](https://en.wikipedia.org/wiki/List_of_ISO_3166_country_codes):",
-        true,
+        true
       );
     }
 
@@ -185,7 +216,7 @@ Deno.serve(
       } satisfies KvValue);
 
       return sendTgMessage(
-        "Successfully logged in to Truecaller.\nYou can now search any number.",
+        "Successfully logged in to Truecaller.\nYou can now search any number."
       );
     }
 
@@ -204,7 +235,7 @@ Deno.serve(
     if ((message.text as BotCommand) === "/login") {
       if (kvValue.status === "logged_in") {
         return sendTgMessage(
-          "You are already logged in. /logout first and then try /login again.",
+          "You are already logged in. /logout first and then try /login again."
         );
       }
 
@@ -213,7 +244,7 @@ Deno.serve(
       } satisfies KvValue);
 
       return sendTgMessage(
-        "Enter your Truecaller account phone no. in international (+19...) format:",
+        "Enter your Truecaller account phone no. in international (+19...) format:"
       );
     }
 
@@ -225,7 +256,7 @@ Deno.serve(
 
       if (!phoneNumber?.startsWith("+")) {
         return sendTgMessage(
-          "Phone number should be in international format like +91...",
+          "Phone number should be in international format like +91..."
         );
       }
 
@@ -233,7 +264,7 @@ Deno.serve(
 
       if (responseBody.status === 6 || responseBody.status === 5) {
         return sendTgMessage(
-          "You have exceeded the limit of verification attempts.\nPlease try again after some time (up to 24h).",
+          "You have exceeded the limit of verification attempts.\nPlease try again after some time (up to 24h)."
         );
       }
 
@@ -262,12 +293,12 @@ Deno.serve(
       const otpResponse = (await verifyOtp(
         kvValue.phoneNumber,
         kvValue.loginResponse,
-        otp,
+        otp
       )) as Record<string, unknown>;
 
       if (otpResponse.suspended) {
         return sendTgMessage(
-          "Your account has been suspended by Truecaller.\nTry to /login with another number.",
+          "Your account has been suspended by Truecaller.\nTry to /login with another number."
         );
       }
 
@@ -281,7 +312,7 @@ Deno.serve(
 
       if (!otpResponse.installationId) {
         return sendTgMessage(
-          (otpResponse.message as string) || "Unknown error. Try again.",
+          (otpResponse.message as string) || "Unknown error. Try again."
         );
       }
 
@@ -294,7 +325,7 @@ Deno.serve(
       reportEvent("/login");
 
       return sendTgMessage(
-        "Successfully logged in to Truecaller.\nYou can now search any number.",
+        "Successfully logged in to Truecaller.\nYou can now search any number."
       );
     }
 
@@ -323,7 +354,7 @@ Deno.serve(
       if (status === 40101 || status === 42601) {
         return sendTgMessage(
           `Truecaller responded with an account error: \`${apiMessage}\`\\.\n\nMake sure your account is still valid by login into the official app\\.\n\nTry to /login here again after checking\\.`,
-          true,
+          true
         );
       }
 
@@ -333,7 +364,7 @@ Deno.serve(
     reportEvent("/search");
 
     return sendTgMessage(searchResult.json());
-  },
+  }
 );
 
 function sendTgMessage(text: string, formatted = false) {
@@ -349,14 +380,14 @@ function sendTgMessage(text: string, formatted = false) {
       headers: {
         "Content-Type": "application/json",
       },
-    },
+    }
   );
 }
 
 function sendTypingIndicator(): void {
   fetch(
     `https://api.telegram.org/bot${Deno.env.get(
-      "TG_THIS_BOT_TOKEN",
+      "TG_THIS_BOT_TOKEN"
     )}/sendChatAction`,
     {
       method: "POST",
@@ -367,7 +398,7 @@ function sendTypingIndicator(): void {
         chat_id: tgChatId,
         action: "typing",
       }),
-    },
+    }
   ).catch(console.error);
 }
 
@@ -404,7 +435,7 @@ function reportError(error: Error): void {
 
   fetch(
     `https://api.telegram.org/bot${Deno.env.get(
-      "TG_THIS_BOT_TOKEN",
+      "TG_THIS_BOT_TOKEN"
     )}/sendMessage`,
     {
       method: "POST",
@@ -416,7 +447,7 @@ function reportError(error: Error): void {
         parse_mode: "MarkdownV2",
         text: `${"```"}\n${details}\n${"```"}`,
       }),
-    },
+    }
   ).catch(console.error);
 }
 
